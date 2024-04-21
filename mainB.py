@@ -1,7 +1,8 @@
-# Импортируем необходимые классы.
 import logging
-import datetime as dt
-from telegram.ext import Application, MessageHandler, filters, CommandHandler
+import aiohttp
+from LxmlSoup import LxmlSoup
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler
 
 # Запускаем логгирование
 logging.basicConfig(
@@ -9,6 +10,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
 
 def remove_job_if_exists(name, context):
     """Удаляем задачу по имени.
@@ -20,8 +22,10 @@ def remove_job_if_exists(name, context):
         job.schedule_removal()
     return True
 
+
 TIMER = 5
-# Обычный обработчик, как и те, которыми мы пользовались раньше.
+
+
 async def set_timer(update, context):
     """Добавляем задачу в очередь"""
     chat_id = update.effective_message.chat_id
@@ -49,24 +53,76 @@ async def unset(update, context):
     await update.message.reply_text(text)
 
 
-def main():
-    # Создаём объект Application.
-    # Вместо слова "TOKEN" надо разместить полученный от @BotFather токен
-    application = Application.builder().token("TOKEN").build()
+async def get_file_schedule_olimps(update, context):
+    # получаем html код сайта
+    html = await get_response(
+        "https://olimpiada.ru/activities?subject%5B6%5D=on&class=11&type=any&period_date=&period=year")
+    soup = LxmlSoup(html)
+    # получаем список наименований
+    links = soup.find_all('span', class_='headline')
+    # получаем список дат
+    links2 = soup.find_all('span', class_='headline red')
+    # сопоставляем наименование с датой
+    result = []
+    for i in range(len(links)):
+        result.append([links[i].text()])
+    for i in range(len(links)):
+        result[i].append(links2[i].text())
+    print(result)
 
-    # Создаём обработчик сообщений типа filters.TEXT
-    # из описанной выше асинхронной функции echo()
-    # После регистрации обработчика в приложении
-    # эта асинхронная функция будет вызываться при получении сообщения
-    # с типом "текст", т. е. текстовых сообщений.
 
-    # Регистрируем обработчик в приложении.
-    application.add_handler(CommandHandler("set", set_timer))
-    application.add_handler(CommandHandler("unset", unset))
-    # Запускаем приложение.
-    application.run_polling()
+async def get_response(url):
+    logger.info(f"getting {url}")
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            return await resp.text()
+
+
+async def start(update, context):
+    global markup
+    await update.message.reply_text(
+        "Я бот-справочник. Какая информация вам нужна?",
+        reply_markup=markup
+    )
+
+
+async def close_keyboard(update, context):
+    await update.message.reply_text(
+        "Ok",
+        reply_markup=ReplyKeyboardRemove()
+    )
+
+
+async def stop(update, context):
+    await update.message.reply_text("Всего доброго!")
+    return ConversationHandler.END
 
 
 # Запускаем функцию main() в случае запуска скрипта.
 if __name__ == '__main__':
-    main()
+    # Вместо слова "TOKEN" надо разместить полученный от @BotFather токен
+    application = Application.builder().token("TOKEN").build()
+    # Регистрируем обработчик в приложении.
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("olimps", get_file_schedule_olimps))
+    application.add_handler(CommandHandler("close", close_keyboard))
+    reply_keyboard = [['/olimps', '/geo'],
+                      ['/timer', '/results']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
+    conv_handler = ConversationHandler(
+        # Точка входа в диалог.
+        # В данном случае — команда /start. Она задаёт первый вопрос.
+        entry_points=[CommandHandler('start', start)],
+        # Состояние внутри диалога.
+        # Вариант с двумя обработчиками, фильтрующими текстовые сообщения.
+        states={
+            # Функция читает ответ на первый вопрос и задаёт второй.
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_file_schedule_olimps)],
+            # Функция читает ответ на второй вопрос и завершает диалог.
+            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, stop)]
+        },
+        # Точка прерывания диалога. В данном случае — команда /stop.
+        fallbacks=[CommandHandler('stop', stop)]
+    )
+    # Запускаем приложение.
+    application.run_polling()
