@@ -4,32 +4,48 @@ from LxmlSoup import LxmlSoup
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler
 
-# Запускаем логгирование
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
 
 logger = logging.getLogger(__name__)
+
 START = 0
-OlIMP = 1
-CLASS = 2
+CLASS = 1
+OLIMP = 2
+
 
 async def olimps(update, context):
-    # получаем html код сайта
+    context.user_data['studing_class'] = update.message.text
+    cls = context.user_data['studing_class']
+    sbjct = context.user_data['subject']
+    if sbjct == 'math':
+        sbjct = '%5B6%5D'
+    elif sbjct == 'phisics':
+        sbjct = '%5B12%5D'
+    elif sbjct == 'informatics':
+        sbjct = '%5B7%5D'
     html = await get_response(
-        "https://olimpiada.ru/activities?subject%5B6%5D=on&class=11&type=any&period_date=&period=year")
+        f"https://olimpiada.ru/activities?subject{sbjct}=on&class={cls}&type=any&period_date=&period=year")
     soup = LxmlSoup(html)
-    # получаем список наименований
     links = soup.find_all('span', class_='headline')
-    # получаем список дат
     links2 = soup.find_all('span', class_='headline red')
-    # сопоставляем наименование с датой
     result = []
-    for i in range(len(links)):
-        result.append([links[i].text()])
-    for i in range(len(links)):
-        result[i].append(links2[i].text())
-    print(result)
+    if len(links) != len(links) or len(links) * len(links) == 0:
+        await update.message.reply_text(
+            "Плохое соединение с сервером",
+            reply_markup=ReplyKeyboardRemove()
+        )
+    else:
+        for i in range(len(links)):
+            result.append([links[i].text()])
+        for i in range(len(links)):
+            result[i].append(links2[i].text())
+        await update.message.reply_text(
+            "end",
+            reply_markup=ReplyKeyboardRemove()
+        )
+    return ConversationHandler.END
 
 
 async def get_response(url):
@@ -42,12 +58,24 @@ async def get_response(url):
 async def subject(update, context):
     reply_keyboard = [["math"], ["phisics"], ["informatics"]]
     await update.message.reply_text(
-        "Ыelect the subject you want to learn about",
+        "Select the subject you want to learn about",
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, input_field_placeholder="Send subject"
         ),
     )
-    return OlIMP
+    return CLASS
+
+
+async def studing_class(update, context):
+    context.user_data['subject'] = update.message.text
+    reply_keyboard = [["8"], ["9"], ["10"], ["11"]]
+    await update.message.reply_text(
+        "Select your trainig class",
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, input_field_placeholder="Send class"
+        ),
+    )
+    return OLIMP
 
 
 async def start(update, context):
@@ -61,21 +89,24 @@ async def start(update, context):
     return START
 
 
-async def stop(update, context):
-    await update.message.reply_text("Всего доброго!")
+async def close_keyboard(update, context):
+    await update.message.reply_text(
+        "Ok",
+        reply_markup=ReplyKeyboardRemove()
+    )
     return ConversationHandler.END
 
 
 if __name__ == '__main__':
     application = Application.builder().token("TOKEN").build()
-    application.add_handler(CommandHandler("start", start))
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            START: [MessageHandler(filters.Regex("^(olimps)$"), subject),""", MessageHandler(filters.Regex("^(geo)$"), geo),
-                    MessageHandler(filters.Regex("^(timer)$"), timer), MessageHandler(filters.Regex("^(results)$"), results)"""]
+            START: [MessageHandler(filters.Regex("^(olimps)$"), subject)],
+            CLASS: [MessageHandler(filters.Regex("^(math|phisics|informatics)$"), studing_class)],
+            OLIMP: [MessageHandler(filters.Regex("^(8|9|10|11)$"), olimps)]
         },
-        fallbacks=[CommandHandler('stop', stop)]
+        fallbacks=[CommandHandler('close', close_keyboard)]
     )
     application.add_handler(conv_handler)
     application.run_polling()
