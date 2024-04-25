@@ -1,6 +1,7 @@
 import logging
 import math
 import aiohttp
+import datetime
 from data.users import User
 import mainDB
 from LxmlSoup import LxmlSoup
@@ -40,10 +41,13 @@ async def olimps(update, context):
             result.append([links[i].text()])
         for i in range(len(links)):
             result[i].append(links2[i].text())
+        vivod = ''
+        for i in result:
+            vivod += f"{i[0]}: {i[1]}\t"
         await update.message.reply_text(
-            "end",
+            f"{vivod}",
             reply_markup=ReplyKeyboardRemove()
-        )
+            )
     return ConversationHandler.END
 
 
@@ -108,7 +112,21 @@ async def needs(update, context):
 
 
 async def see(update, context):
-    mainDB.nomain(context.user_data["need"], update.message.from_user.id)
+    cash = mainDB.nomain(context.user_data["need"], update.message.from_user.id)
+    """
+    f = open(f"{datetime}", 'w')
+    for i in cash:
+        print(f"{i[0]}: {i[1]}", file=f)
+    f.close()
+    """
+    vivod = ''
+    for i in cash:
+        vivod += f"{i[0]}: {i[1]}\t"
+    await update.message.reply_text(
+        f"{vivod}",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return ConversationHandler.END
 
 
 
@@ -214,7 +232,7 @@ async def get_response2(url, params):
 
 
 async def start(update, context):
-    reply_keyboard = [["olimps", 'geo'], ["timer", "results"]]
+    reply_keyboard = [["olimps", 'geo'], ["results"]]
     await update.message.reply_text(
         "Я бот-справочник. Какая информация вам нужна?",
         reply_markup=ReplyKeyboardMarkup(

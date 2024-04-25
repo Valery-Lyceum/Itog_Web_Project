@@ -25,3 +25,4 @@ def nomain(cmd, polz, nazv='', pt=0):
         olmps = []
         for olmp in db_sess.query(User).filter(User.name == polz):
             olmps.append([olmp.title, olmp.points])
+        return olmps
