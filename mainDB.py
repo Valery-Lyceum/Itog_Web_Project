@@ -6,7 +6,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'yandexlyceum_secret_key'
 
 
-def main(cmd, polz, nazv='', pt=0):
+def nomain(cmd, polz, nazv='', pt=0):
     db_session.global_init("db/blogs.db")
     if cmd == "add":
         user = User()
@@ -17,14 +17,11 @@ def main(cmd, polz, nazv='', pt=0):
         db_sess.add(user)
         db_sess.commit()
     elif cmd == "del":
-        user = db_session.query(User).filter(User.name == polz, User.title == nazv)
-        db_session.delete(user)
-        db_session.commit()
+        db_sess = db_session.create_session()
+        db_sess.query(User).filter(User.name == polz, User.title == nazv).delete()
+        db_sess.commit()
     elif cmd == "see":
+        db_sess = db_session.create_session()
         olmps = []
-        for olmp in db_session.query(User).filter(User.name == polz):
-            olmps.append(olmp)
-        print(olmps)
-
-
-main()
+        for olmp in db_sess.query(User).filter(User.name == polz):
+            olmps.append([olmp.title, olmp.points])
